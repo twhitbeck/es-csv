@@ -1,0 +1,31 @@
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "type": {
+              "value": "sales"
+            }
+          }
+        },
+        {
+          "term": {
+            "network_id": {
+              "value": "82f005b7-1aa3-4d00-8762-6e3c092f01ab"
+            }
+          }
+        },
+        {
+          "range": {
+            "shipped_at": {
+              "gte": "now/d",
+              "time_zone": "America/New_York"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "_source": false
+}

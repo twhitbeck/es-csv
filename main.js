@@ -33,7 +33,7 @@ const server = createServer((req, res) => {
 
   const pageSize = 500;
 
-  new Readable({
+  const esStream = new Readable({
     construct(callback) {
       esFetch(`/orders/_pit?${new URLSearchParams({ keep_alive: "1m" })}`, {
         method: "POST",
@@ -106,34 +106,35 @@ const server = createServer((req, res) => {
         .then(({ pit_id: updatedPitId, hits: { hits } }) => {
           console.timeEnd("fetch page");
 
+          if (this.destroyed) {
+            console.log("destroyed, ignoring results");
+            return;
+          }
+
           this.pitId = updatedPitId;
           this.searchAfter = hits.at(-1)?.sort;
 
           for (const hit of hits) {
-            if (
-              !this.push(
-                [
-                  hit.fields.order_number[0],
-                  hit.fields.status[0],
-                  hit.fields.priority[0],
-                  hit.fields.inserted_at[0],
-                ]
-                  .map((value) => {
-                    if (typeof value !== "string") {
-                      return value;
-                    }
-
-                    if (/[,"]/.test(value)) {
-                      return `"${value.replace(/"/g, '""')}"`;
-                    }
-
+            this.push(
+              [
+                hit.fields.order_number[0],
+                hit.fields.status[0],
+                hit.fields.priority[0],
+                hit.fields.inserted_at[0],
+              ]
+                .map((value) => {
+                  if (typeof value !== "string") {
                     return value;
-                  })
-                  .join(",") + "\n",
-              )
-            ) {
-              console.log("buffer full");
-            }
+                  }
+
+                  if (/[,"]/.test(value)) {
+                    return `"${value.replace(/"/g, '""')}"`;
+                  }
+
+                  return value;
+                })
+                .join(",") + "\n",
+            );
           }
 
           if (hits.length < pageSize) {
@@ -166,7 +167,13 @@ const server = createServer((req, res) => {
         callback(error);
       }
     },
-  }).pipe(res);
+  });
+
+  esStream.pipe(res);
+
+  res.on("close", () => {
+    esStream.destroy();
+  });
 });
 
 server.listen(3000);
